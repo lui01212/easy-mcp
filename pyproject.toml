@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "easy-mcp"
+version = "0.1.0"
+description = "Ultra-lightweight, zero-dependency Python framework to build Model Context Protocol (MCP) servers for Claude."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "lui01212", email = "luynbv@glotechvn.com" }
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "anthropic",
+    "ai",
+    "llm",
+    "agent",
+    "tools",
+    "json-rpc"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = []
+
+[project.scripts]
+easy-mcp = "easy_mcp.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/lui01212/easy-mcp"
+Repository = "https://github.com/lui01212/easy-mcp.git"
+Issues = "https://github.com/lui01212/easy-mcp/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["easy_mcp"]
