@@ -1,7 +1,7 @@
-# easy-mcp ⚡🤖
+# py-easy-mcp ⚡🤖
 
-[![PyPI version](https://img.shields.io/pypi/v/easy-mcp.svg)](https://pypi.org/project/easy-mcp/)
-[![Python versions](https://img.shields.io/pypi/pyversions/easy-mcp.svg)](https://pypi.org/project/easy-mcp/)
+[![PyPI version](https://img.shields.io/pypi/v/py-easy-mcp.svg)](https://pypi.org/project/py-easy-mcp/)
+[![Python versions](https://img.shields.io/pypi/pyversions/py-easy-mcp.svg)](https://pypi.org/project/py-easy-mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://github.com/lui01212/easy-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/lui01212/easy-mcp/actions)
 [![good first issues](https://img.shields.io/github/issues/lui01212/easy-mcp/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/lui01212/easy-mcp/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
@@ -27,7 +27,7 @@ Turn standard Python functions into Model Context Protocol tools, resources, and
 ## 📦 Installation
 
 ```bash
-pip install easy-mcp
+pip install py-easy-mcp
 ```
 
 ---
