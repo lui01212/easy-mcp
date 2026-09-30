@@ -1,0 +1,39 @@
+name: "🐛 Bug Report"
+description: File a bug report for easy-mcp.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue with easy-mcp!
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear description of the issue or unexpected MCP behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: client
+    attributes:
+      label: MCP Client
+      description: Which client is connecting? (e.g., Claude Desktop, Claude Code, Cursor, Custom Inspector)
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Code Snippet
+      description: Minimal Python script reproducing the issue.
+      placeholder: |
+        from easy_mcp import EasyMCP
+        mcp = EasyMCP("test")
+        ...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS version, Python version, easy-mcp version
+      placeholder: Windows 11 / macOS / Linux, Python 3.12, easy-mcp v0.2.0

@@ -1,0 +1,27 @@
+name: "💡 Feature Request"
+description: Propose a new MCP feature, protocol extension, or example.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome ideas to make building MCP servers even easier and more powerful!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What capability or MCP feature are you looking for?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution or API Design
+      description: How should the Python API look? (e.g., decorator syntax, helper utility)
+    validations:
+      required: true
+  - type: textarea
+    id: client_compatibility
+    attributes:
+      label: Client Compatibility
+      description: Does this target Claude Desktop, Cursor, or general MCP clients?
