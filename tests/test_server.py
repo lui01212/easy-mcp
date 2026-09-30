@@ -3,6 +3,7 @@ Comprehensive unit tests for easy-mcp server, protocol, resources, prompts and t
 Uses Python standard library unittest (zero external dependencies).
 """
 
+import os
 import unittest
 from easy_mcp.server import EasyMCP
 from easy_mcp.schema import function_to_tool_schema, function_to_prompt_arguments
@@ -398,6 +399,185 @@ class TestEasyMCP(unittest.TestCase):
         err5 = InvalidRequestError()
         self.assertEqual(err5.code, -32600)
 
+    # ==========================================
+    # 7. Async def Tool, Resource & Prompt Tests
+    # ==========================================
+
+    def test_async_tool_execution(self):
+        @self.mcp.tool()
+        async def fetch_status(service: str) -> dict:
+            """Async status check."""
+            return {"service": service, "online": True}
+
+        res = self.mcp.call_tool("fetch_status", {"service": "database"})
+        self.assertFalse(res["isError"])
+        self.assertIn('"online": true', res["content"][0]["text"])
+
+    def test_async_resource_execution(self):
+        @self.mcp.resource("async://metrics")
+        async def fetch_metrics() -> str:
+            return "cpu=15%,mem=42%"
+
+        res = self.mcp.read_resource("async://metrics")
+        self.assertEqual(res["contents"][0]["text"], "cpu=15%,mem=42%")
+
+    def test_async_prompt_execution(self):
+        @self.mcp.prompt()
+        async def dynamic_prompt(role: str) -> str:
+            return f"You are a helpful {role} assistant."
+
+        res = self.mcp.get_prompt("dynamic_prompt", {"role": "DevOps"})
+        self.assertIn("DevOps assistant", res["messages"][0]["content"]["text"])
+
+    # ==========================================
+    # 8. Claude Desktop Installer Tests
+    # ==========================================
+
+    def test_installer_get_config_path(self):
+        from easy_mcp.installer import get_claude_config_path
+        p = get_claude_config_path()
+        self.assertTrue(len(p) > 0)
+        self.assertTrue(p.endswith("claude_desktop_config.json"))
+
+    def test_installer_install_server_flow(self):
+        import tempfile
+        import json
+        from easy_mcp.installer import install_server
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dummy_script = f"{tmpdir}/my_custom_server.py"
+            with open(dummy_script, "w") as f:
+                f.write("# dummy server\n")
+
+            custom_config = f"{tmpdir}/claude_desktop_config.json"
+            success, msg = install_server(
+                script_path=dummy_script,
+                config_path=custom_config,
+                python_path="python",
+                env={"API_KEY": "test-123"}
+            )
+            self.assertTrue(success)
+            self.assertIn("Successfully registered", msg)
+
+            # Verify written JSON
+            with open(custom_config, "r") as f:
+                data = json.load(f)
+            self.assertIn("my-custom-server", data["mcpServers"])
+            self.assertEqual(data["mcpServers"]["my-custom-server"]["command"], "python")
+            self.assertEqual(data["mcpServers"]["my-custom-server"]["env"]["API_KEY"], "test-123")
+
+            # Second install to test backup creation
+            success2, msg2 = install_server(
+                script_path=dummy_script,
+                server_name="renamed-server",
+                config_path=custom_config,
+            )
+            self.assertTrue(success2)
+            self.assertTrue(os.path.exists(f"{custom_config}.bak"))
+
+    def test_installer_missing_script(self):
+        from easy_mcp.installer import install_server
+        success, msg = install_server("nonexistent_script_xyz.py")
+        self.assertFalse(success)
+        self.assertIn("not found", msg)
+
+    # ==========================================
+    # 9. Dev Inspector & CLI Dev Tests
+    # ==========================================
+
+    def test_dev_load_server_and_format(self):
+        from easy_mcp.dev import load_server_from_file, format_server_summary
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script_path = f"{tmpdir}/demo_mcp.py"
+            with open(script_path, "w", encoding="utf-8") as f:
+                f.write(
+                    "from easy_mcp import EasyMCP\n"
+                    "mcp = EasyMCP('demo-server', version='1.0.0')\n"
+                    "@mcp.tool()\n"
+                    "def ping() -> str:\n"
+                    "    '''Ping tool'''\n"
+                    "    return 'pong'\n"
+                )
+
+            mcp_instance = load_server_from_file(script_path)
+            self.assertEqual(mcp_instance.name, "demo-server")
+            summary = format_server_summary(mcp_instance)
+            self.assertIn("demo-server", summary)
+            self.assertIn("ping", summary)
+
+    def test_dev_load_missing_script_error(self):
+        from easy_mcp.dev import load_server_from_file
+        with self.assertRaises(FileNotFoundError):
+            load_server_from_file("missing_dev_file.py")
+
+    def test_dev_load_no_mcp_instance_error(self):
+        from easy_mcp.dev import load_server_from_file
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script_path = f"{tmpdir}/empty_module.py"
+            with open(script_path, "w") as f:
+                f.write("x = 42\n")
+            with self.assertRaises(ValueError):
+                load_server_from_file(script_path)
+
+    def test_cli_dev_call_tool(self):
+        import io
+        import json
+        from contextlib import redirect_stdout
+        from easy_mcp.cli import main
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = main(["dev", "examples/basic_math.py", "--call", "add", "-a", '{"a": 10, "b": 25}'])
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertIn(output["content"][0]["text"], ["35", "35.0"])
+
+    def test_sqlite_server_example(self):
+        from examples.sqlite_server import list_tables, describe_table, execute_query, database_schema
+        tables = list_tables()
+        self.assertIn("users", tables)
+        self.assertIn("projects", tables)
+
+        cols = describe_table("users")
+        col_names = [c["name"] for c in cols]
+        self.assertIn("email", col_names)
+
+        rows = execute_query("SELECT name, email FROM users WHERE role='maintainer'")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["name"], "Alice Smith")
+
+        schema = database_schema()
+        self.assertIn("CREATE TABLE", schema)
+
+    def test_cli_init_command(self):
+        import tempfile
+        from easy_mcp.cli import main
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = f"{tmpdir}/server.py"
+            code = main(["init", "my-test-mcp", "-o", out_file])
+            self.assertEqual(code, 0)
+            self.assertTrue(os.path.exists(out_file))
+
+    def test_cli_install_command(self):
+        import tempfile
+        import json
+        from easy_mcp.cli import main
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script_file = f"{tmpdir}/srv.py"
+            cfg_file = f"{tmpdir}/cfg.json"
+            with open(script_file, "w") as f:
+                f.write("# srv")
+            code = main(["install", script_file, "-c", cfg_file, "-n", "test-srv"])
+            self.assertEqual(code, 0)
+            with open(cfg_file, "r") as f:
+                d = json.load(f)
+            self.assertIn("test-srv", d["mcpServers"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
+

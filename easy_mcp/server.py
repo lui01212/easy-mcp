@@ -5,6 +5,8 @@ Implements Model Context Protocol (MCP) 2024-11-05 Specification for Tools, Reso
 Zero external dependencies.
 """
 
+import asyncio
+import inspect
 import json
 import os
 import sys
@@ -62,7 +64,7 @@ class EasyMCP:
     def __init__(
         self,
         name: str = "easy-mcp-server",
-        version: str = "0.2.0",
+        version: str = "0.3.0",
         description: str = ""
     ):
         self.name = name
@@ -114,7 +116,10 @@ class EasyMCP:
         func = self._tools[name]
 
         try:
-            res = func(**args)
+            if inspect.iscoroutinefunction(func):
+                res = asyncio.run(func(**args))
+            else:
+                res = func(**args)
 
             if isinstance(res, (dict, list)):
                 text_content = json.dumps(res, ensure_ascii=False, indent=2)
@@ -198,12 +203,11 @@ class EasyMCP:
         func = self._resources[uri]
         
         # Function may take 0 or 1 argument (uri)
-        import inspect
         sig = inspect.signature(func)
-        if len(sig.parameters) == 1:
-            data = func(uri)
+        if inspect.iscoroutinefunction(func):
+            data = asyncio.run(func(uri) if len(sig.parameters) == 1 else func())
         else:
-            data = func()
+            data = func(uri) if len(sig.parameters) == 1 else func()
 
         if isinstance(data, (dict, list)):
             text_data = json.dumps(data, ensure_ascii=False, indent=2)
@@ -274,7 +278,10 @@ class EasyMCP:
         func = self._prompts[name]
         args = arguments or {}
 
-        res = func(**args)
+        if inspect.iscoroutinefunction(func):
+            res = asyncio.run(func(**args))
+        else:
+            res = func(**args)
 
         # Normalize result into list of messages
         if isinstance(res, list):
