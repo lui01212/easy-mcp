@@ -1,6 +1,6 @@
 ## Description
 <!-- Briefly describe what this PR does, why it is needed, and link any related issues. -->
-Fixes #
+Related issue: # (use Fixes only when the PR resolves the issue)
 
 ## Type of Change
 - [ ] ✨ New MCP capability (tools, resources, prompts, transports)
@@ -12,5 +12,11 @@ Fixes #
 ## Checklist
 - [ ] My code adheres to the project's zero-external-dependency rule for runtime code.
 - [ ] All unit tests pass locally with `python -m unittest discover -s tests`.
-- [ ] I have added new unit tests for any new features or bug fixes.
-- [ ] Tested against Claude Desktop or MCP JSON-RPC stdio protocol.
+- [ ] I have added relevant tests for behavior changes, or explained why tests do not apply.
+- [ ] For protocol changes: tested the affected MCP behavior; docs-only changes may mark this N/A.
+
+## Validation evidence
+<!-- Commands and results; for docs, verify snippets and links. -->
+
+## Privacy
+- [ ] Examples use synthetic data; no credentials or private data are included.

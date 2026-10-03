@@ -5,17 +5,39 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://github.com/lui01212/easy-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/lui01212/easy-mcp/actions)
 [![good first issues](https://img.shields.io/github/issues/lui01212/easy-mcp/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/lui01212/easy-mcp/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
-[![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2024-ff7a59?logo=hacktoberfest)](https://hacktoberfest.com/)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-7057ff)](CONTRIBUTING.md)
 
 **Ultra-lightweight, zero-dependency Python framework for Model Context Protocol (MCP). Build MCP servers for Claude in seconds.**
 
 Turn standard Python functions (both sync and `async def`) into Model Context Protocol tools, resources, and prompt templates for **Claude Desktop** and **Claude Code** with simple decorators.
 
+## Start here: your first contribution
+
+**[Featured beginner issue #11](https://github.com/lui01212/easy-mcp/issues/11)**: Write an offline walkthrough of the existing math example.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, claiming an issue, and opening a draft PR.
+
+Repository: `easy-mcp`; PyPI distribution: `py-easy-mcp`; Python import: `easy_mcp`.
+Both py-easy-mcp and easy-mcp are installed CLI aliases.
+
+Try this from a reviewed source checkout, in the repository root, with Python 3.8+.
+It uses synthetic inputs and needs no API key or network access:
+
+```python
+from examples.basic_math import mcp
+print(mcp.call_tool("add", {"a": 2, "b": 3}))
+```
+
+Expected output:
+
+```text
+{'content': [{'type': 'text', 'text': '5'}], 'isError': False}
+```
+
 ---
 
 ## ⚡ Why py-easy-mcp?
 
-- **Zero dependencies:** Written in 100% pure standard Python. Instant startup, zero supply-chain risk.
+- **Zero dependencies:** Written in 100% pure standard Python. No third-party runtime dependencies; review code and build tools before use.
 - **Sync & Async Support:** Supports both standard `def` and modern `async def` tool, resource, and prompt handlers.
 - **Full MCP Protocol Support (v0.3.0):** Tools (`@mcp.tool()`), Resources (`@mcp.resource()`), and Prompts (`@mcp.prompt()`).
 - **1-Click Claude Desktop Installer:** Run `py-easy-mcp install server.py` to auto-detect and configure `claude_desktop_config.json` with automatic backup.
