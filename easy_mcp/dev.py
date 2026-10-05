@@ -157,7 +157,14 @@ def run_interactive_repl(mcp: EasyMCP) -> None:
                 except Exception as e:
                     print(f"Error parsing JSON arguments: {e}")
                     continue
-            res = mcp.call_tool(tool_name, args)
+            if not isinstance(args, dict):
+                print("Error: arguments must be a JSON object.")
+                continue
+            try:
+                res = mcp.call_tool(tool_name, args)
+            except KeyError:
+                print(f"Unknown tool: '{tool_name}'. Type 'tools' to list them.")
+                continue
             print(json.dumps(res, indent=2, ensure_ascii=False))
 
         elif cmd == "read":

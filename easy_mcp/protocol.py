@@ -16,6 +16,9 @@ METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
 
+# MCP-specific error codes
+RESOURCE_NOT_FOUND = -32002
+
 # Standard MCP Methods
 METHOD_INITIALIZE = "initialize"
 METHOD_INITIALIZED = "notifications/initialized"

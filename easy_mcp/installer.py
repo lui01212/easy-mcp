@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import sys
+import time
 from typing import Any, Dict, Optional, Tuple
 
 
@@ -30,17 +31,19 @@ def install_server(
     python_path: Optional[str] = None,
     config_path: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
+    force: bool = False,
 ) -> Tuple[bool, str]:
     """
     Safely registers an MCP server into Claude Desktop config.
-    
+
     Args:
         script_path: Path to the python script containing the EasyMCP server.
         server_name: Optional custom server name for mcpServers.
         python_path: Python executable to run the server (defaults to sys.executable).
         config_path: Custom config path (defaults to official Claude Desktop location).
         env: Optional environment variables dictionary.
-        
+        force: Replace an existing server of the same name that runs a different script.
+
     Returns:
         (success: bool, message: str)
     """
@@ -52,30 +55,50 @@ def install_server(
     target_name = target_name.replace("_", "-")
 
     py_exe = python_path or sys.executable
+    # Claude Desktop starts servers from its own working directory.
+    if os.sep in py_exe or (os.altsep and os.altsep in py_exe):
+        py_exe = os.path.abspath(py_exe)
     target_config = config_path or get_claude_config_path()
-
-    config_dir = os.path.dirname(target_config)
-    os.makedirs(config_dir, exist_ok=True)
 
     config_data: Dict[str, Any] = {"mcpServers": {}}
 
     if os.path.exists(target_config):
-        backup_path = f"{target_config}.bak"
+        try:
+            # utf-8-sig accepts files saved with a BOM (e.g. by Windows PowerShell 5).
+            with open(target_config, "r", encoding="utf-8-sig") as f:
+                content = f.read().strip()
+            if content:
+                config_data = json.loads(content)
+        except Exception as e:
+            return False, f"Failed to read existing config JSON: {e}"
+
+        if not isinstance(config_data, dict):
+            return False, f"Config file is not a JSON object: {target_config}"
+        servers = config_data.get("mcpServers")
+        if servers is None:
+            config_data["mcpServers"] = {}
+        elif not isinstance(servers, dict):
+            return False, f"'mcpServers' in {target_config} is not a JSON object; fix it by hand first."
+
+        existing = config_data["mcpServers"].get(target_name)
+        if isinstance(existing, dict) and existing.get("args") != [abs_script] and not force:
+            return False, (
+                f"A server named '{target_name}' is already registered "
+                f"(args: {existing.get('args')}). Choose another name with --name, "
+                f"or use --force to replace it."
+            )
+
+        backup_path = f"{target_config}.{time.strftime('%Y%m%d-%H%M%S')}.bak"
+        counter = 1
+        while os.path.exists(backup_path):
+            backup_path = f"{target_config}.{time.strftime('%Y%m%d-%H%M%S')}-{counter}.bak"
+            counter += 1
         try:
             shutil.copy2(target_config, backup_path)
         except Exception as e:
             return False, f"Failed to create config backup: {e}"
-
-        try:
-            with open(target_config, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if content:
-                    config_data = json.loads(content)
-        except Exception as e:
-            return False, f"Failed to read existing config JSON: {e}"
-
-    if "mcpServers" not in config_data or not isinstance(config_data["mcpServers"], dict):
-        config_data["mcpServers"] = {}
+    else:
+        os.makedirs(os.path.dirname(target_config) or ".", exist_ok=True)
 
     server_entry: Dict[str, Any] = {
         "command": py_exe,

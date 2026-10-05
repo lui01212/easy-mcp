@@ -102,14 +102,19 @@ py-easy-mcp install my_server.py
 
 `py-easy-mcp` will:
 1. Locate your OS Claude config (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/...` on macOS).
-2. Create a timestamped backup (`claude_desktop_config.json.bak`).
+2. Create a timestamped backup (`claude_desktop_config.json.<date>-<time>.bak`) before changing an existing config.
 3. Register `my-server` pointing to your current Python environment.
+
+If another script is already registered under the same name, the install stops instead of replacing it. Pick a different name with `--name`, or pass `--force` to replace it.
 
 Restart Claude Desktop, and your tools will appear instantly!
 
 ---
 
 ## 🛠️ CLI Utilities & Dev Tools
+
+### Logging from tools
+stdout carries the JSON-RPC stream, so while the server runs, `print()` inside a tool is sent to stderr, where Claude Desktop keeps its server logs. Error details and tracebacks also go to stderr; the model only sees the error type and message.
 
 ### Dev Inspector (Offline Testing)
 Inspect all registered schemas, parameter requirements, and docstrings:
@@ -139,7 +144,7 @@ py-easy-mcp init weather-server
 ## 📂 Production MCP Examples
 
 Check out our ready-to-run examples in `examples/`:
-- `examples/sqlite_server.py` - Full SQLite database inspector with `list_tables`, `describe_table`, `execute_query` (read-only), and schema DDL resource.
+- `examples/sqlite_server.py` - SQLite database inspector with `list_tables`, `describe_table`, `execute_query`, and a schema DDL resource. It opens `SQLITE_DB_PATH` read-only and stops queries that run longer than 5 seconds.
 - `examples/basic_math.py` - Arithmetic calculation tools.
 - `examples/pii_shield_mcp.py` - AI data privacy sanitizer for Claude.
 

@@ -5,18 +5,22 @@ Built with easy-mcp (zero external dependencies, uses Python standard library sq
 """
 
 import os
+import pathlib
 import sqlite3
+import time
 from typing import Any, Dict, List, Optional
 from easy_mcp import EasyMCP
 
 mcp = EasyMCP(
     name="sqlite-mcp-server",
-    version="0.3.0",
+    version="0.3.1",
     description="Inspect and query SQLite databases from Claude Desktop"
 )
 
 # In-memory demo DB with sample tables if no custom DB path is set
 DB_PATH = os.environ.get("SQLITE_DB_PATH", ":memory:")
+QUERY_TIMEOUT_SECONDS = 5.0
+MAX_ROWS = 1000
 _shared_conn: Optional[sqlite3.Connection] = None
 
 
@@ -27,9 +31,29 @@ def get_db() -> sqlite3.Connection:
             _shared_conn = sqlite3.connect(":memory:", check_same_thread=False)
             _shared_conn.row_factory = sqlite3.Row
         return _shared_conn
-    conn = sqlite3.connect(DB_PATH)
+    path = pathlib.Path(DB_PATH).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"SQLITE_DB_PATH does not exist: {path}")
+    # mode=ro opens the file read-only; query_only also rejects writes at the SQL level.
+    conn = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+    conn.execute("PRAGMA query_only = ON")
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _run(conn: sqlite3.Connection, sql: str, params: tuple = (), limit: Optional[int] = None) -> List[sqlite3.Row]:
+    """Run one statement, aborting it once QUERY_TIMEOUT_SECONDS has passed."""
+    deadline = time.monotonic() + QUERY_TIMEOUT_SECONDS
+    conn.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, 10_000)
+    try:
+        cur = conn.execute(sql, params)
+        return cur.fetchall() if limit is None else cur.fetchmany(limit)
+    except sqlite3.OperationalError as e:
+        if str(e) == "interrupted":
+            raise TimeoutError(f"Query stopped after {QUERY_TIMEOUT_SECONDS:g} seconds.") from e
+        raise
+    finally:
+        conn.set_progress_handler(None, 0)
 
 
 def close_db(conn: sqlite3.Connection) -> None:
@@ -63,6 +87,7 @@ if DB_PATH == ":memory:":
             (2, 'easy-mcp', 'active');
     """)
     conn.commit()
+    conn.execute("PRAGMA query_only = ON")
 
 
 @mcp.tool()
@@ -70,9 +95,8 @@ def list_tables() -> List[str]:
     """List all table names present in the SQLite database."""
     conn = get_db()
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
-        return [row[0] for row in cur.fetchall()]
+        rows = _run(conn, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+        return [row[0] for row in rows]
     finally:
         close_db(conn)
 
@@ -84,12 +108,12 @@ def describe_table(table_name: str) -> List[Dict[str, Any]]:
     Args:
         table_name: Name of the table to inspect
     """
+    if table_name not in list_tables():
+        raise ValueError(f"Unknown table: {table_name!r}")
     conn = get_db()
     try:
-        cur = conn.cursor()
-        cur.execute(f"PRAGMA table_info({table_name});")
         columns = []
-        for row in cur.fetchall():
+        for row in _run(conn, "SELECT * FROM pragma_table_info(?)", (table_name,)):
             columns.append({
                 "cid": row["cid"],
                 "name": row["name"],
@@ -107,19 +131,18 @@ def execute_query(query: str, limit: int = 50) -> List[Dict[str, Any]]:
     """Execute a read-only SELECT SQL query and return rows as dictionaries.
     
     Args:
-        query: The SELECT query to run (e.g. 'SELECT * FROM users LIMIT 10')
-        limit: Maximum number of rows to return (default 50)
+        query: The SELECT (or WITH ... SELECT) query to run (e.g. 'SELECT * FROM users LIMIT 10')
+        limit: Maximum number of rows to return (default 50, at most 1000)
     """
     clean_sql = query.strip()
-    if not clean_sql.upper().startswith("SELECT"):
-        raise ValueError("Security violation: Only SELECT queries are permitted.")
+    first_word = clean_sql.split(None, 1)[0].upper() if clean_sql else ""
+    if first_word not in ("SELECT", "WITH"):
+        raise ValueError("Only SELECT queries are permitted.")
+    limit = max(1, min(int(limit), MAX_ROWS))
 
     conn = get_db()
     try:
-        cur = conn.cursor()
-        cur.execute(clean_sql)
-        rows = cur.fetchmany(limit)
-        return [dict(row) for row in rows]
+        return [dict(row) for row in _run(conn, clean_sql, limit=limit)]
     finally:
         close_db(conn)
 
@@ -129,9 +152,7 @@ def database_schema() -> str:
     """Complete SQLite database DDL schema."""
     conn = get_db()
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL;")
-        ddls = [row[0] for row in cur.fetchall()]
+        ddls = [row[0] for row in _run(conn, "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL;")]
         return "\n\n".join(ddls)
     finally:
         close_db(conn)

@@ -17,36 +17,58 @@ MCP Server generated with easy-mcp.
 Connects with Claude Desktop and Claude Code.
 """
 
+import ast
+import operator
+import sys
+
 from easy_mcp import EasyMCP
 
-mcp = EasyMCP(name="{name}", version="0.3.0", description="Starter MCP Server")
+mcp = EasyMCP(name=__SERVER_NAME__, version="0.1.0", description="Starter MCP Server")
+
+_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _evaluate(node):
+    if isinstance(node, ast.Expression):
+        return _evaluate(node.body)
+    if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+        return node.value
+    if isinstance(node, ast.BinOp) and type(node.op) in _OPERATORS:
+        return _OPERATORS[type(node.op)](_evaluate(node.left), _evaluate(node.right))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _OPERATORS:
+        return _OPERATORS[type(node.op)](_evaluate(node.operand))
+    raise ValueError("only numbers, parentheses and + - * / are allowed")
 
 
 @mcp.tool()
 def hello_world(name: str = "World") -> str:
     \"\"\"Say hello to someone.
-    
+
     Args:
         name: Name of the person to greet
     \"\"\"
-    return f"Hello, {{name}}! Welcome to MCP."
+    return f"Hello, {name}! Welcome to MCP."
 
 
 @mcp.tool()
 def calculate(expression: str) -> str:
     \"\"\"Safely calculate a basic arithmetic expression.
-    
+
     Args:
         expression: Simple math expression like '2 + 2 * 10'
     \"\"\"
-    allowed_chars = set("0123456789+-*/(). ")
-    if not all(c in allowed_chars for c in expression):
-        return "Error: Only basic numbers and operators (+, -, *, /) are allowed."
     try:
-        result = eval(expression, {{"__builtins__": None}}, {{}})
-        return f"Result: {{result}}"
+        result = _evaluate(ast.parse(expression, mode="eval"))
+        return f"Result: {result}"
     except Exception as e:
-        return f"Error evaluating expression: {{e}}"
+        return f"Error evaluating expression: {e}"
 
 
 if __name__ == "__main__":
@@ -67,7 +89,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"Error: '{filename}' already exists. Use --force to overwrite.", file=sys.stderr)
         return 1
 
-    content = STARTER_TEMPLATE.format(name=name)
+    content = STARTER_TEMPLATE.replace("__SERVER_NAME__", repr(name))
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
 
@@ -106,6 +128,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         server_name=args.name,
         python_path=args.python,
         config_path=args.config,
+        force=args.force,
     )
     if success:
         print(f"[OK] {msg}")
@@ -133,7 +156,15 @@ def cmd_dev(args: argparse.Namespace) -> int:
             except Exception as e:
                 print(f"Error: Invalid JSON arguments: {e}", file=sys.stderr)
                 return 1
-        res = mcp.call_tool(tool_name, arguments)
+        if not isinstance(arguments, dict):
+            print("Error: --args must be a JSON object.", file=sys.stderr)
+            return 1
+        try:
+            res = mcp.call_tool(tool_name, arguments)
+        except KeyError:
+            available = ", ".join(t["name"] for t in mcp.list_tools()) or "none"
+            print(f"Error: Unknown tool '{tool_name}'. Available tools: {available}", file=sys.stderr)
+            return 1
         print(json.dumps(res, indent=2, ensure_ascii=False))
         return 0
 
@@ -173,6 +204,7 @@ def main(argv=None) -> int:
     p_inst.add_argument("-n", "--name", help="Custom server name in Claude config")
     p_inst.add_argument("-p", "--python", help="Path to Python interpreter (defaults to current python)")
     p_inst.add_argument("-c", "--config", help="Custom claude_desktop_config.json path")
+    p_inst.add_argument("-f", "--force", action="store_true", help="Replace an existing server with the same name")
     p_inst.set_defaults(func=cmd_install)
 
     # dev

@@ -1,6 +1,7 @@
 """
 PII Shield MCP Server:
-Integrates pii-masker-ai with easy-mcp to give Claude a tool for sanitizing sensitive data.
+Gives Claude a small regex-based tool for masking emails and phone numbers.
+For fuller detection, use the pii-masker-ai package.
 """
 
 from easy_mcp import EasyMCP

@@ -6,6 +6,7 @@ Zero external dependencies.
 """
 
 import asyncio
+import contextlib
 import inspect
 import json
 import os
@@ -18,6 +19,7 @@ from easy_mcp.protocol import (
     INVALID_PARAMS,
     INVALID_REQUEST,
     MCP_PROTOCOL_VERSION,
+    RESOURCE_NOT_FOUND,
     METHOD_INITIALIZE,
     METHOD_INITIALIZED,
     METHOD_NOT_FOUND,
@@ -33,6 +35,15 @@ from easy_mcp.protocol import (
     make_jsonrpc_response,
 )
 from easy_mcp.schema import function_to_prompt_arguments, function_to_tool_schema
+
+
+def _resolve(result: Any) -> Any:
+    """Await the result of an async handler, including wrapped or partial ones."""
+    if inspect.isawaitable(result):
+        async def _await() -> Any:
+            return await result
+        return asyncio.run(_await())
+    return result
 
 
 class EasyMCP:
@@ -116,10 +127,7 @@ class EasyMCP:
         func = self._tools[name]
 
         try:
-            if inspect.iscoroutinefunction(func):
-                res = asyncio.run(func(**args))
-            else:
-                res = func(**args)
+            res = _resolve(func(**args))
 
             if isinstance(res, (dict, list)):
                 text_content = json.dumps(res, ensure_ascii=False, indent=2)
@@ -136,11 +144,13 @@ class EasyMCP:
                 "isError": False
             }
         except Exception as e:
+            # The traceback goes to stderr (the client's log), not to the model.
+            traceback.print_exc(file=sys.stderr)
             return {
                 "content": [
                     {
                         "type": "text",
-                        "text": f"Error executing tool '{name}': {str(e)}\n{traceback.format_exc()}"
+                        "text": f"Error executing tool '{name}': {type(e).__name__}: {e}"
                     }
                 ],
                 "isError": True
@@ -204,10 +214,7 @@ class EasyMCP:
         
         # Function may take 0 or 1 argument (uri)
         sig = inspect.signature(func)
-        if inspect.iscoroutinefunction(func):
-            data = asyncio.run(func(uri) if len(sig.parameters) == 1 else func())
-        else:
-            data = func(uri) if len(sig.parameters) == 1 else func()
+        data = _resolve(func(uri) if len(sig.parameters) == 1 else func())
 
         if isinstance(data, (dict, list)):
             text_data = json.dumps(data, ensure_ascii=False, indent=2)
@@ -278,10 +285,7 @@ class EasyMCP:
         func = self._prompts[name]
         args = arguments or {}
 
-        if inspect.iscoroutinefunction(func):
-            res = asyncio.run(func(**args))
-        else:
-            res = func(**args)
+        res = _resolve(func(**args))
 
         # Normalize result into list of messages
         if isinstance(res, list):
@@ -325,11 +329,20 @@ class EasyMCP:
 
         req_id = request_data.get("id")
         method = request_data.get("method")
-        params = request_data.get("params", {})
-        is_notification = (req_id is None)
+        params = request_data.get("params")
+        # A message without an "id" member is a notification and never gets a reply.
+        is_notification = "id" not in request_data
 
         if not method or not isinstance(method, str):
             return make_jsonrpc_error(req_id, INVALID_REQUEST, "Missing or invalid 'method' parameter.")
+
+        if is_notification:
+            return None
+
+        if params is None:
+            params = {}
+        if not isinstance(params, dict):
+            return make_jsonrpc_error(req_id, INVALID_PARAMS, "'params' must be an object.")
 
         # 1. Initialize
         if method == METHOD_INITIALIZE:
@@ -360,11 +373,13 @@ class EasyMCP:
 
         elif method == METHOD_TOOLS_CALL:
             tool_name = params.get("name")
-            arguments = params.get("arguments", {})
-            if not tool_name:
+            arguments = params.get("arguments") or {}
+            if not tool_name or not isinstance(tool_name, str):
                 return make_jsonrpc_error(req_id, INVALID_PARAMS, "Missing required parameter: 'name'")
+            if not isinstance(arguments, dict):
+                return make_jsonrpc_error(req_id, INVALID_PARAMS, "'arguments' must be an object.")
             if tool_name not in self._tools:
-                return make_jsonrpc_error(req_id, METHOD_NOT_FOUND, f"Tool '{tool_name}' not found.")
+                return make_jsonrpc_error(req_id, INVALID_PARAMS, f"Unknown tool: '{tool_name}'")
 
             res = self.call_tool(tool_name, arguments)
             return make_jsonrpc_response(req_id, res)
@@ -375,10 +390,12 @@ class EasyMCP:
 
         elif method == METHOD_RESOURCES_READ:
             uri = params.get("uri")
-            if not uri:
+            if not uri or not isinstance(uri, str):
                 return make_jsonrpc_error(req_id, INVALID_PARAMS, "Missing required parameter: 'uri'")
             if uri not in self._resources:
-                return make_jsonrpc_error(req_id, INVALID_PARAMS, f"Resource '{uri}' not found.")
+                return make_jsonrpc_error(
+                    req_id, RESOURCE_NOT_FOUND, f"Resource not found: '{uri}'", {"uri": uri}
+                )
 
             try:
                 res = self.read_resource(uri)
@@ -392,11 +409,13 @@ class EasyMCP:
 
         elif method == METHOD_PROMPTS_GET:
             prompt_name = params.get("name")
-            arguments = params.get("arguments", {})
-            if not prompt_name:
+            arguments = params.get("arguments") or {}
+            if not prompt_name or not isinstance(prompt_name, str):
                 return make_jsonrpc_error(req_id, INVALID_PARAMS, "Missing required parameter: 'name'")
+            if not isinstance(arguments, dict):
+                return make_jsonrpc_error(req_id, INVALID_PARAMS, "'arguments' must be an object.")
             if prompt_name not in self._prompts:
-                return make_jsonrpc_error(req_id, METHOD_NOT_FOUND, f"Prompt '{prompt_name}' not found.")
+                return make_jsonrpc_error(req_id, INVALID_PARAMS, f"Unknown prompt: '{prompt_name}'")
 
             try:
                 res = self.get_prompt(prompt_name, arguments)
@@ -405,29 +424,55 @@ class EasyMCP:
                 return make_jsonrpc_error(req_id, INTERNAL_ERROR, f"Error generating prompt: {str(e)}")
 
         else:
-            if is_notification:
-                return None
             return make_jsonrpc_error(req_id, METHOD_NOT_FOUND, f"Unknown method: '{method}'")
 
-    def run_stdio(self):
-        """Run the stdio JSON-RPC loop connecting with Claude Desktop."""
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
+    def _handle_line(self, line: str) -> Optional[str]:
+        """Turn one line of input into one serialized response, or None."""
+        try:
+            request_data = json.loads(line)
+        except ValueError as e:
+            return json.dumps(make_jsonrpc_error(None, PARSE_ERROR, f"JSON parse error: {e}"))
 
-            try:
-                request_data = json.loads(line)
-            except json.JSONDecodeError as e:
-                err_resp = make_jsonrpc_error(None, PARSE_ERROR, f"JSON parse error: {str(e)}")
-                sys.stdout.write(json.dumps(err_resp) + "\n")
-                sys.stdout.flush()
-                continue
-
+        req_id = request_data.get("id") if isinstance(request_data, dict) else None
+        try:
             response = self.handle_request(request_data)
-            if response is not None:
-                sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
-                sys.stdout.flush()
+            if response is None:
+                return None
+            return json.dumps(response, ensure_ascii=False)
+        except Exception as e:
+            traceback.print_exc(file=sys.stderr)
+            return json.dumps(
+                make_jsonrpc_error(req_id, INTERNAL_ERROR, f"Internal error: {type(e).__name__}: {e}")
+            )
+
+    def run_stdio(self):
+        """Run the stdio JSON-RPC loop connecting with Claude Desktop.
+
+        The protocol is UTF-8 on every platform. While handlers run, sys.stdout
+        points at stderr, so a stray print() cannot corrupt the JSON-RPC stream.
+        """
+        protocol_out = sys.stdout
+        protocol_out.flush()
+        out = getattr(protocol_out, "buffer", None)
+        stdin = getattr(sys.stdin, "buffer", sys.stdin)
+
+        with contextlib.redirect_stdout(sys.stderr):
+            for raw in stdin:
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8", errors="replace")
+                line = raw.strip()
+                if not line:
+                    continue
+
+                reply = self._handle_line(line)
+                if reply is None:
+                    continue
+                if out is not None:
+                    out.write((reply + "\n").encode("utf-8"))
+                    out.flush()
+                else:
+                    protocol_out.write(reply + "\n")
+                    protocol_out.flush()
 
     def run(self):
         """Alias for run_stdio."""
@@ -439,7 +484,7 @@ class EasyMCP:
         return {
             "mcpServers": {
                 self.name: {
-                    "command": "python",
+                    "command": sys.executable,
                     "args": [target_script]
                 }
             }

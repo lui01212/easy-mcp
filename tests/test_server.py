@@ -4,6 +4,7 @@ Uses Python standard library unittest (zero external dependencies).
 """
 
 import os
+import sys
 import unittest
 from easy_mcp.server import EasyMCP
 from easy_mcp.schema import function_to_tool_schema, function_to_prompt_arguments
@@ -20,6 +21,7 @@ from easy_mcp.protocol import (
     MCP_PROTOCOL_VERSION,
     METHOD_NOT_FOUND,
     INVALID_PARAMS,
+    RESOURCE_NOT_FOUND,
     MCPError,
     ParseError,
     InvalidRequestError,
@@ -244,7 +246,7 @@ class TestEasyMCP(unittest.TestCase):
             "params": {"name": "non_existent_tool"}
         }
         res = self.mcp.handle_request(req)
-        self.assertEqual(res["error"]["code"], METHOD_NOT_FOUND)
+        self.assertEqual(res["error"]["code"], INVALID_PARAMS)
 
     # ==========================================
     # 4. Resources Tests
@@ -307,7 +309,7 @@ class TestEasyMCP(unittest.TestCase):
             "params": {"uri": "unknown://path"}
         }
         res = self.mcp.handle_request(req)
-        self.assertEqual(res["error"]["code"], INVALID_PARAMS)
+        self.assertEqual(res["error"]["code"], RESOURCE_NOT_FOUND)
 
     # ==========================================
     # 5. Prompts Tests
@@ -365,7 +367,7 @@ class TestEasyMCP(unittest.TestCase):
             "params": {"name": "ghost_prompt"}
         }
         res = self.mcp.handle_request(req)
-        self.assertEqual(res["error"]["code"], METHOD_NOT_FOUND)
+        self.assertEqual(res["error"]["code"], INVALID_PARAMS)
 
     # ==========================================
     # 6. General JSON-RPC & Claude Config Tests
@@ -384,7 +386,7 @@ class TestEasyMCP(unittest.TestCase):
         cfg = self.mcp.get_claude_config("/path/to/server.py")
         self.assertIn("mcpServers", cfg)
         self.assertIn("test-server", cfg["mcpServers"])
-        self.assertEqual(cfg["mcpServers"]["test-server"]["command"], "python")
+        self.assertEqual(cfg["mcpServers"]["test-server"]["command"], sys.executable)
         self.assertEqual(cfg["mcpServers"]["test-server"]["args"], ["/path/to/server.py"])
 
     def test_exception_classes(self):
@@ -473,7 +475,7 @@ class TestEasyMCP(unittest.TestCase):
                 config_path=custom_config,
             )
             self.assertTrue(success2)
-            self.assertTrue(os.path.exists(f"{custom_config}.bak"))
+            self.assertTrue(any(n.endswith(".bak") for n in os.listdir(tmpdir)))
 
     def test_installer_missing_script(self):
         from easy_mcp.installer import install_server
