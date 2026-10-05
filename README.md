@@ -2,10 +2,10 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/py-easy-mcp.svg)](https://pypi.org/project/py-easy-mcp/)
 [![Python versions](https://img.shields.io/pypi/pyversions/py-easy-mcp.svg)](https://pypi.org/project/py-easy-mcp/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/lui01212/easy-mcp/blob/main/LICENSE)
 [![Tests](https://github.com/lui01212/easy-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/lui01212/easy-mcp/actions)
 [![good first issues](https://img.shields.io/github/issues/lui01212/easy-mcp/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/lui01212/easy-mcp/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
-[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-7057ff)](CONTRIBUTING.md)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-7057ff)](https://github.com/lui01212/easy-mcp/blob/main/CONTRIBUTING.md)
 
 **Ultra-lightweight, zero-dependency Python framework for Model Context Protocol (MCP). Build MCP servers for Claude in seconds.**
 
@@ -14,7 +14,7 @@ Turn standard Python functions (both sync and `async def`) into Model Context Pr
 ## Start here: your first contribution
 
 **[Featured beginner issue #11](https://github.com/lui01212/easy-mcp/issues/11)**: Write an offline walkthrough of the existing math example.
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, claiming an issue, and opening a draft PR.
+Read [CONTRIBUTING.md](https://github.com/lui01212/easy-mcp/blob/main/CONTRIBUTING.md) for setup, claiming an issue, and opening a draft PR.
 
 Repository: `easy-mcp`; PyPI distribution: `py-easy-mcp`; Python import: `easy_mcp`.
 Both py-easy-mcp and easy-mcp are installed CLI aliases.
@@ -147,10 +147,10 @@ Check out our ready-to-run examples in `examples/`:
 
 ## 🤝 Contributing for Hacktoberfest
 
-We welcome beginner-friendly contributions! Add new lightweight tool examples or protocol extensions. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+We welcome beginner-friendly contributions! Add new lightweight tool examples or protocol extensions. See [CONTRIBUTING.md](https://github.com/lui01212/easy-mcp/blob/main/CONTRIBUTING.md) to get started.
 
 ---
 
 ## 📄 License
 
-[MIT License](LICENSE) © 2026 lui01212
+[MIT License](https://github.com/lui01212/easy-mcp/blob/main/LICENSE) © 2026 lui01212
