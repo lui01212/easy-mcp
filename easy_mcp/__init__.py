@@ -16,7 +16,7 @@ from easy_mcp.protocol import (
     InternalError,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __all__ = [
     "EasyMCP",
     "function_to_tool_schema",
